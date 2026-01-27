@@ -1,0 +1,16 @@
+import { Tool } from './types';
+import { fileReaderTool } from './fileReaderTool';
+import { testParserTool } from './testParserTool';
+import { gitDiffTool } from './gitDiffTool';
+
+export const tools: Tool[] = [
+  fileReaderTool,
+  testParserTool,
+  gitDiffTool,
+];
+
+export function getToolByName(name: string): Tool | undefined {
+  return tools.find(tool => tool.name === name);
+}
+
+export * from './types';
