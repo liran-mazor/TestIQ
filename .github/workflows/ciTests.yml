@@ -23,12 +23,7 @@ jobs:
         run: npm install
       
       - name: Run tests and capture output
-        run: |
-          set +e
-          npm test 2>&1 | tee test-output.txt
-          TEST_EXIT_CODE=$?
-          echo "Exit code: $TEST_EXIT_CODE"
-          exit $TEST_EXIT_CODE
+        run: npm test 2>&1 | tee test-output.txt
       
       - name: Upload test output as artifact
         if: always()
