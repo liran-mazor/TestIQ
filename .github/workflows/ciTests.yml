@@ -23,7 +23,9 @@ jobs:
         run: npm install
       
       - name: Run tests and capture output
-        run: npm test 2>&1 | tee test-output.txt
+        run: |
+          npm test 2>&1 | tee test-output.txt
+          exit ${PIPESTATUS[0]}
       
       - name: Upload test output as artifact
         if: always()
