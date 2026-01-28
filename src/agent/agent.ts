@@ -4,7 +4,7 @@ import { SYSTEM_PROMPT, createUserPrompt } from './prompts';
 
 export class TestIQ {
   private client: Anthropic;
-  private maxIterations = 10;
+  private maxIterations = 15;
   
   constructor(apiKey: string) {
     this.client = new Anthropic({ apiKey });

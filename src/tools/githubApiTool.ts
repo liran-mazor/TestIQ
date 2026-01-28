@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Tool, ToolResult } from './types';
+import { Octokit } from '@octokit/rest';
 
 const GithubApiParams = z.object({
   action: z.enum(['post_comment', 'get_pr_info']).describe('Action to perform'),
@@ -10,7 +11,6 @@ async function execute(params: z.infer<typeof GithubApiParams>): Promise<ToolRes
   try {
     const { action, content } = params;
     
-    // In real GitHub Actions, these would be environment variables
     const token = process.env.GITHUB_TOKEN;
     const repository = process.env.GITHUB_REPOSITORY;
     const prNumber = process.env.GITHUB_PR_NUMBER;
@@ -23,31 +23,35 @@ async function execute(params: z.infer<typeof GithubApiParams>): Promise<ToolRes
         };
       }
 
-      // Mock implementation (real version would use Octokit)
+      // Check if running in GitHub Actions
       if (!token || !repository || !prNumber) {
         return {
           success: true,
           data: {
             message: 'Mock: Would post comment to GitHub PR',
-            content: content,
-            note: 'GitHub environment variables not set (normal for local testing)'
+            content: content.substring(0, 200) + '...',
+            note: 'GitHub environment variables not set (running locally)'
           }
         };
       }
 
-      // Real implementation would be:
-      // const octokit = new Octokit({ auth: token });
-      // await octokit.rest.issues.createComment({
-      //   owner: repository.split('/')[0],
-      //   repo: repository.split('/')[1],
-      //   issue_number: parseInt(prNumber),
-      //   body: content
-      // });
+      // Real implementation with Octokit
+      const octokit = new Octokit({ auth: token });
+      const [owner, repo] = repository.split('/');
+
+      const comment = await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: parseInt(prNumber),
+        body: content
+      });
 
       return {
         success: true,
         data: {
           message: 'Comment posted successfully',
+          commentId: comment.data.id,
+          url: comment.data.html_url,
           repository,
           prNumber
         }
@@ -60,7 +64,7 @@ async function execute(params: z.infer<typeof GithubApiParams>): Promise<ToolRes
         data: {
           repository: repository || 'not-set',
           prNumber: prNumber || 'not-set',
-          message: 'Mock PR info (set GITHUB_* env vars for real data)'
+          message: repository && prNumber ? 'PR info available' : 'Not running in PR context'
         }
       };
     }
@@ -79,7 +83,7 @@ async function execute(params: z.infer<typeof GithubApiParams>): Promise<ToolRes
 
 export const githubApiTool: Tool = {
   name: 'github_api_tool',
-  description: 'Interact with GitHub API. Actions: post_comment (post analysis to PR), get_pr_info (get PR details). Used automatically at the end to share the analysis.',
+  description: 'Interact with GitHub API. Actions: post_comment (post analysis summary to PR as a comment), get_pr_info (get PR details). Use post_comment to share a brief summary of your analysis on the PR.',
   parameters: GithubApiParams,
   execute
 };

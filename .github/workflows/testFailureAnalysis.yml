@@ -2,7 +2,7 @@ name: TestIQ - Analyze Test Failures
 
 on:
   workflow_run:
-    workflows: ["CI Tests"]  # Triggers after your test workflow
+    workflows: ["CI Tests"]
     types:
       - completed
 
@@ -23,10 +23,23 @@ jobs:
       - name: Install dependencies
         run: npm install
       
+      - name: Download test output artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-output
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+      
       - name: Run TestIQ Analysis
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: npm start
+          GITHUB_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+        run: npm start test-output.txt

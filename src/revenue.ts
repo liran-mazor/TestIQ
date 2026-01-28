@@ -1,4 +1,7 @@
 export function calculateRevenue(order: any) {
   // This function expects order.total but it's undefined
-  return order.total * 1.1; // Bug: order.total might be undefined
+  if (!order || typeof order.total !== 'number') {
+    throw new Error('Order must have a valid total');
+  }
+  return order.total * 1.1;
 }
