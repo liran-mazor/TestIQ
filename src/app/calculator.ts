@@ -14,4 +14,4 @@ export function calculateDiscount(amount: number, percentage: number): number {
     throw new Error('Invalid percentage');
   }
   return amount * (percentage / 100);
-}
+}// Test change for CI integration

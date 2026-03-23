@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { Tool, ToolResult } from './types';
+import { generateHtmlEmail } from '../utils/htmlEmailGenerator';
+import { uploadToS3 } from '../utils/s3Upload';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,7 +13,11 @@ const DocumentGeneratorParams = z.object({
 
 async function execute(params: z.infer<typeof DocumentGeneratorParams>): Promise<ToolResult> {
   try {
-    const { title, content, filename = 'analysis_report.md' } = params;
+    let { title, content, filename = 'analysis_report.md' } = params;
+  // Ensure .md extension
+  if (!filename.endsWith('.md')) {
+    filename = filename + '.md';
+  }
     
     // Create reports directory if it doesn't exist
     const reportsDir = path.join(process.cwd(), 'reports');
@@ -19,7 +25,7 @@ async function execute(params: z.infer<typeof DocumentGeneratorParams>): Promise
       fs.mkdirSync(reportsDir, { recursive: true });
     }
     
-    // Generate full report with header
+    // Generate full markdown report
     const timestamp = new Date().toISOString().split('T')[0];
     const fullReport = `# ${title}
 
@@ -36,14 +42,31 @@ ${content}
 *For questions, contact your DevOps team.*
 `;
     
-    // Write to file
-    const filepath = path.join(reportsDir, filename);
-    fs.writeFileSync(filepath, fullReport, 'utf-8');
+    // Write markdown file
+    const mdFilepath = path.join(reportsDir, filename);
+    fs.writeFileSync(mdFilepath, fullReport, 'utf-8');
+    
+    // Generate HTML version
+    const htmlContent = generateHtmlEmail(fullReport, title);
+    const htmlFilename = filename.replace('.md', '.html');
+    const htmlFilepath = path.join(reportsDir, htmlFilename);
+    fs.writeFileSync(htmlFilepath, htmlContent, 'utf-8');
+    
+    // Upload HTML to S3
+    let htmlUrl = '';
+    try {
+      htmlUrl = await uploadToS3(htmlFilepath, 'report');
+      console.log(`✅ Report uploaded to S3: ${htmlUrl}`);
+    } catch (error: any) {
+      console.warn(`⚠️ S3 upload failed (will use attachment): ${error.message}`);
+    }
     
     return {
       success: true,
       data: {
-        filepath,
+        mdFilepath,
+        htmlFilepath,
+        htmlUrl, // Public URL to view the report
         filename,
         size: fullReport.length,
         message: 'Report generated successfully'
@@ -59,7 +82,7 @@ ${content}
 
 export const documentGeneratorTool: Tool = {
   name: 'document_generator_tool',
-  description: 'Generate a professional Markdown report document. Creates a .md file with the analysis that can be emailed as an attachment. Use this after completing the analysis to create the final report.',
+  description: 'Generate a professional Markdown report document and HTML version. Creates both .md and .html files, uploads HTML to S3 for easy viewing. Returns htmlUrl for sharing. Use this after completing the analysis to create the final report.',
   parameters: DocumentGeneratorParams,
   execute
 };
