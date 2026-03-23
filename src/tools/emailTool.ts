@@ -2,20 +2,22 @@ import nodemailer from 'nodemailer';
 import { z } from 'zod';
 import { Tool, ToolResult } from './types';
 import { resolveRecipient, teamMembers } from '../config/team';
+import { generateHtmlEmail } from '../utils/htmlEmailGenerator';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export const EmailToolParams = z.object({
   recipient: z.string().describe('Email address or role (e.g., "team_leader", "cto", or "john@company.com")'),
   subject: z.string().describe('Email subject line'),
-  body: z.string().describe('Email body content'),
-  attachments: z.array(z.string()).optional().describe('Optional array of file paths to attach (e.g., chart files)'),
+  body: z.string().describe('Email body content (plain text)'),
+  attachments: z.array(z.string()).optional().describe('Optional array of file paths to attach (e.g., report files)'),
 });
 
 export type EmailToolInput = z.infer<typeof EmailToolParams>;
 
 export const emailTool: Tool = {
   name: 'email_tool',
-  description: 'Send an email with optional attachments. Use when user requests to send, email, or share results. Recipient can be a role (team_leader, cto, vp, ceo) or direct email address.',
+  description: 'Send an email with optional attachments. Use when user requests to send, email, or share results. Recipient can be a role (team_leader, cto, vp, ceo) or direct email address. Body will be automatically formatted as HTML if it contains markdown.',
   parameters: EmailToolParams,
   execute: async (params: any): Promise<ToolResult> => {
     try {
@@ -56,12 +58,41 @@ export const emailTool: Tool = {
       });
   
       // Prepare attachments
-      const attachments = validated.attachments?.map((filePath) => ({
-        filename: path.basename(filePath),
-        path: filePath,
-      })) || [];
+      const attachments = validated.attachments?.map((filePath) => {
+        // Read markdown files and also attach them as HTML
+        const filename = path.basename(filePath);
+        const attachment: any = {
+          filename,
+          path: filePath,
+        };
+        
+        // If it's a markdown file, also generate HTML version
+        if (filePath.endsWith('.md')) {
+          try {
+            const markdownContent = fs.readFileSync(filePath, 'utf-8');
+            const htmlContent = generateHtmlEmail(
+              markdownContent,
+              validated.subject
+            );
+            
+            // Add HTML version as alternative attachment
+            return [
+              attachment,
+              {
+                filename: filename.replace('.md', '.html'),
+                content: htmlContent,
+              }
+            ];
+          } catch (error) {
+            // If HTML generation fails, just attach the markdown
+            return attachment;
+          }
+        }
+        
+        return attachment;
+      }).flat() || [];
   
-      // Send email
+      // Send email with plain text body (attachment has the HTML)
       const info = await transporter.sendMail({
         from: process.env.EMAIL_FROM,
         to: recipientEmail,
